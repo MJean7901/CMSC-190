@@ -18,7 +18,11 @@ global {
 	float proba_infection <- 0.05;
 	int init_infA <- 4;
 	int init_infB <- 4;
+	float go_out_rate <- 1.0;
+	bool social_distancing <- false;
+	int mobile_people <- round(nb_people * go_out_rate);
 	int nb_infected_init <- init_infA + init_infB;
+	
 //	float step <- 45 #seconds;
 //	geometry shape <- envelope(square(300 #m));
 
@@ -29,8 +33,8 @@ global {
 	
 	int infectedA <- init_infA update: people_A count (each.is_infected);
 	int infectedB <- init_infB update: people_B count (each.is_infected);
-	int susceptibleA <- nb_people/2 -init_infA update: people_A count(each.is_susceptible);
-	int susceptibleB <-  nb_people/2-init_infA update: people_B count(each.is_susceptible);
+	int susceptibleA <- nb_people/2 - init_infA update: people_A count(each.is_susceptible);
+	int susceptibleB <- nb_people/2 - init_infB update: people_B count(each.is_susceptible);
 	
 	
 	
@@ -68,6 +72,13 @@ global {
 			is_infected <- true;
 			is_susceptible <- false;
 		}
+		
+		 ask mobile_people among people_A{
+        	social_distancing <- true;
+        }
+        ask mobile_people among people_B{
+        	social_distancing <- true;
+        }
 
 	}
 
@@ -81,12 +92,46 @@ species people_A skills: [moving] {
 	list<people_A> targets;
 	bool is_infected <- false;
 	bool is_susceptible <-true;
+	bool social_distancing <- false;
 	
 	
 
-	reflex move {
-		do wander bounds: brgy_A;
+	reflex wander {
+	    if flip(1.0) {
+	        if (social_distancing = true) {
+	            ask mobile_people among people_A {
+	                // Calculate the distance to other people and adjust speed accordingly
+	                float min_distance <- people_A select ((each distance_to self) < 1.0 #m);
+	                if (min_distance < 1.0 #m) {
+	                    speed <- 0.0; // Stop moving if too close
+	                } else {
+	                    speed <- rnd(0.0, 1.0 #m);
+	                    do wander bounds: brgy_A;
+	                }
+	            }
+	        } else {
+	            speed <- rnd(0.0, 1.0 #m);
+	            do wander bounds: brgy_A;
+	        }
+	    }
 	}
+	/*reflex wander {
+			if flip(1.0) {
+				if (can_go_out = false) {
+					speed <- rnd(0.0, 1.0);
+					do wander bounds: shape;
+				} else {
+					do wander;
+				}
+			}
+		} */
+		
+		reflex move {
+		do wander  bounds: brgy_A;
+	}
+	
+    
+	 
 
 	reflex infect when: is_infected {
 		ask people_A at_distance infection_distance {
@@ -131,7 +176,7 @@ species people_B skills: [moving] {
 	
 
 	reflex move {
-		do wander bounds: brgy_B;
+		do wander;
 	}
 
 	reflex infect when: is_infected {
@@ -172,7 +217,7 @@ species people_B skills: [moving] {
 	
 }
 	int infected <- nb_infected_init update: infectedA + infectedB;
-	int susceptible <- nb_people-nb_infected_init update: (susceptibleA + susceptibleB);
+	int susceptible <- 0 update: (susceptibleA + susceptibleB)-infected;
 	int cycle_number <- 0 update: cycle_number + 1;
 	
 		float susceptible_rate <- 1.0 update: susceptible / nb_people;
